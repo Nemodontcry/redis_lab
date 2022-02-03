@@ -28,14 +28,21 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+// 避免头文件重复导入
 #ifndef _ZMALLOC_H
 #define _ZMALLOC_H
 
+// malloc()
 void *zmalloc(size_t size);
+//realloc()
 void *zrealloc(void *ptr, size_t size);
+// free()
 void zfree(void *ptr);
+// 复制字符串
 char *zstrdup(const char *s);
+// 返回使用的内存大小
 size_t zmalloc_used_memory(void);
+// 开启线程安全
 void zmalloc_enable_thread_safeness(void);
 
 #endif /* _ZMALLOC_H */

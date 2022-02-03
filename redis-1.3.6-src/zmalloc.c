@@ -29,10 +29,10 @@
  */
 
 #include <stdio.h>
-#include <stdlib.h>
+#include <stdlib.h>     // malloc()/realloc()/free()
 #include <string.h>
 #include <pthread.h>
-#include "config.h"
+#include "config.h"     // 系统兼容性配置信息
 
 #if defined(__sun)
 #define PREFIX_SIZE sizeof(long long)
@@ -40,6 +40,7 @@
 #define PREFIX_SIZE sizeof(size_t)
 #endif
 
+// 增加内存 线程安全 加锁
 #define increment_used_memory(_n) do { \
     if (zmalloc_thread_safe) { \
         pthread_mutex_lock(&used_memory_mutex);  \
@@ -50,6 +51,7 @@
     } \
 } while(0)
 
+// 减少内存 线程安全 加锁
 #define decrement_used_memory(_n) do { \
     if (zmalloc_thread_safe) { \
         pthread_mutex_lock(&used_memory_mutex);  \
@@ -60,8 +62,11 @@
     } \
 } while(0)
 
+// 全局静态变量
 static size_t used_memory = 0;
+// 线程安全参数
 static int zmalloc_thread_safe = 0;
+// 初始化一个互斥量
 pthread_mutex_t used_memory_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static void zmalloc_oom(size_t size) {
@@ -72,15 +77,20 @@ static void zmalloc_oom(size_t size) {
 }
 
 void *zmalloc(size_t size) {
+    // PREFIX_SIZE --> sizeof(size_t)
     void *ptr = malloc(size+PREFIX_SIZE);
 
     if (!ptr) zmalloc_oom(size);
 #ifdef HAVE_MALLOC_SIZE
+    // for MacOS
     increment_used_memory(redis_malloc_size(ptr));
     return ptr;
 #else
+    // 把内存空间大小 size 存到内存的前面 sizeof(size_t) 位置
     *((size_t*)ptr) = size;
+    // 记录已使用内存
     increment_used_memory(size+PREFIX_SIZE);
+    // 指向真正的可用的分配内存
     return (char*)ptr+PREFIX_SIZE;
 #endif
 }
@@ -102,9 +112,13 @@ void *zrealloc(void *ptr, size_t size) {
     increment_used_memory(redis_malloc_size(newptr));
     return newptr;
 #else
+    // 真正的内存空间（分配的起始地址） 指针
     realptr = (char*)ptr-PREFIX_SIZE;
+    // 获得原来分配的内存大小
     oldsize = *((size_t*)realptr);
+
     newptr = realloc(realptr,size+PREFIX_SIZE);
+
     if (!newptr) zmalloc_oom(size);
 
     *((size_t*)newptr) = size;
@@ -125,7 +139,9 @@ void zfree(void *ptr) {
     decrement_used_memory(redis_malloc_size(ptr));
     free(ptr);
 #else
+    // 获得真实指针地址
     realptr = (char*)ptr-PREFIX_SIZE;
+    // 获得原始大小
     oldsize = *((size_t*)realptr);
     decrement_used_memory(oldsize+PREFIX_SIZE);
     free(realptr);
@@ -133,7 +149,7 @@ void zfree(void *ptr) {
 }
 
 char *zstrdup(const char *s) {
-    size_t l = strlen(s)+1;
+    size_t l = strlen(s)+1;     // strlen() 不包括 '\0' 所以要+1
     char *p = zmalloc(l);
 
     memcpy(p,s,l);

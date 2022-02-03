@@ -33,12 +33,12 @@
 
 #include <sys/types.h>
 
-typedef char *sds;
+typedef char *sds;  // sgs == char *
 
 struct sdshdr {
-    long len;
-    long free;
-    char buf[];
+    long len;       // 当前字符长度
+    long free;      // 剩余长度
+    char buf[];     // 字符数组  "hello" --> ['h','e','l','l','o','\0']
 };
 
 sds sdsnewlen(const void *init, size_t initlen);

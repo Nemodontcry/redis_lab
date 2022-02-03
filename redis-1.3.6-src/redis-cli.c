@@ -204,6 +204,8 @@ static void usage();
 static struct redisCommand *lookupCommand(char *name) {
     int j = 0;
     while(cmdTable[j].name != NULL) {
+        // 遍历 cmdTable 查找命令
+        // strcasecmp 忽略大小写
         if (!strcasecmp(name,cmdTable[j].name)) return &cmdTable[j];
         j++;
     }
@@ -215,6 +217,7 @@ static int cliConnect(void) {
     static int fd = ANET_ERR;
 
     if (fd == ANET_ERR) {
+        // fd --> socket
         fd = anetTcpConnect(err,config.hostip,config.hostport);
         if (fd == ANET_ERR) {
             fprintf(stderr, "Could not connect to Redis at %s:%d: %s", config.hostip, config.hostport, err);
@@ -249,7 +252,7 @@ static int cliReadSingleLineReply(int fd, int quiet) {
     sds reply = cliReadLine(fd);
 
     if (reply == NULL) return 1;
-    if (!quiet)
+    if (!quiet) 
         printf("%s\n", reply);
     sdsfree(reply);
     return 0;
@@ -261,7 +264,8 @@ static int cliReadBulkReply(int fd) {
     int bulklen;
 
     if (replylen == NULL) return 1;
-    bulklen = atoi(replylen);
+    
+    bulklen = atoi(replylen);   // 字符串转为int
     if (bulklen == -1) {
         sdsfree(replylen);
         printf("(nil)\n");
@@ -305,20 +309,20 @@ static int cliReadMultiBulkReply(int fd) {
 static int cliReadReply(int fd) {
     char type;
 
-    if (anetRead(fd,&type,1) <= 0) exit(1);
+    if (anetRead(fd, &type, 1) <= 0) exit(1);
     switch(type) {
-    case '-':
+    case '-':               // 错误信息
         printf("(error) ");
         cliReadSingleLineReply(fd,0);
         return 1;
-    case '+':
+    case '+':               // 正确结果
         return cliReadSingleLineReply(fd,0);
-    case ':':
+    case ':':               // 整形
         printf("(integer) ");
         return cliReadSingleLineReply(fd,0);
-    case '$':
+    case '$':               // 参数响应
         return cliReadBulkReply(fd);
-    case '*':
+    case '*':               // 多参数响应
         return cliReadMultiBulkReply(fd);
     default:
         printf("protocol error, got '%c' as reply type byte\n", type);
@@ -331,14 +335,19 @@ static int selectDb(int fd) {
     sds cmd;
     char type;
 
+    // 默认数据库 0
     if (config.dbnum == 0)
         return 0;
 
     cmd = sdsempty();
     cmd = sdscatprintf(cmd,"SELECT %d\r\n",config.dbnum);
+
+    // 向 redis 服务发送字符串
     anetWrite(fd,cmd,sdslen(cmd));
+    // 读取 server 返回的结果
     anetRead(fd,&type,1);
     if (type <= 0 || type != '+') return 1;
+    // '+' 
     retval = cliReadSingleLineReply(fd,1);
     if (retval) {
         return retval;
@@ -347,26 +356,36 @@ static int selectDb(int fd) {
 }
 
 static int cliSendCommand(int argc, char **argv) {
+    // lookupCommand() 查看命令是否符合要求
+    // argv[0] 第一个参数 即 命令参数
     struct redisCommand *rc = lookupCommand(argv[0]);
     int fd, j, retval = 0;
     int read_forever = 0;
     sds cmd;
 
+    // 如果命令不存在
     if (!rc) {
         fprintf(stderr,"Unknown command '%s'\n",argv[0]);
         return 1;
     }
 
+    // 判断参数数量是否正确
     if ((rc->arity > 0 && argc != rc->arity) ||
         (rc->arity < 0 && argc < -rc->arity)) {
             fprintf(stderr,"Wrong number of arguments for '%s'\n",rc->name);
             return 1;
     }
+
+    // 输入 monitor 进入监听模式
     if (!strcasecmp(rc->name,"monitor")) read_forever = 1;
+    // 建立与服务端的连接，得到套接字 redis server
     if ((fd = cliConnect()) == -1) return 1;
 
+
     /* Select db number */
+    // 选择数据库
     retval = selectDb(fd);
+    // retval 为1 有错误， 为0，无错误
     if (retval) {
         fprintf(stderr,"Error setting DB num\n");
         return 1;
@@ -374,8 +393,16 @@ static int cliSendCommand(int argc, char **argv) {
 
     while(config.repeat--) {
         /* Build the command to send */
+        // 创建空命令 sds
         cmd = sdsempty();
+        // 包装、处理待发命令
         if (rc->flags & REDIS_CMD_MULTIBULK) {
+            // MULTIBULK 批量处理
+            // 包装、处理待发命令 
+            // mset hello world s1 s2
+            // cmd == *5 \r\n $4 \r\n mset \r\n 
+            // $5 \r\n hello \r\n $5 world \r\n 
+            // $2 \r\n s1 \r\n $2 \r\n s2 \r\n
             cmd = sdscatprintf(cmd,"*%d\r\n",argc);
             for (j = 0; j < argc; j++) {
                 cmd = sdscatprintf(cmd,"$%lu\r\n",
@@ -403,13 +430,15 @@ static int cliSendCommand(int argc, char **argv) {
                 cmd = sdscatlen(cmd,"\r\n",2);
             }
         }
-        anetWrite(fd,cmd,sdslen(cmd));
-        sdsfree(cmd);
+        anetWrite(fd,cmd,sdslen(cmd));  // 向 redis 服务端写入命令
+        sdsfree(cmd);                   // 释放内存
 
+        // 如果 monitor 执行这里
+        // 监听向服务端发送的消息
         while (read_forever) {
             cliReadSingleLineReply(fd,0);
         }
-
+        // 收取 redis 服务端的消息，返回结果
         retval = cliReadReply(fd);
         if (retval) {
             return retval;
@@ -512,6 +541,7 @@ static char *prompt(char *line, int size) {
         printf(">> ");
         // 等待输入，把输入传入 line
         // retval 和 line 相同，都包含换行符 \n
+        // fgets 无法删除输入
         retval = fgets(line, size, stdin);
     } while (retval && *line == '\n');
 
