@@ -62,12 +62,14 @@ void listRelease(list *list)
 
     current = list->head;
     len = list->len;
+    // 循环释放每个节点
     while(len--) {
         next = current->next;
         if (list->free) list->free(current->value);
         zfree(current);
         current = next;
     }
+    // 最后释放 list 
     zfree(list);
 }
 
@@ -133,11 +135,14 @@ void listDelNode(list *list, listNode *node)
         node->prev->next = node->next;
     else
         list->head = node->next;
+    
     if (node->next)
         node->next->prev = node->prev;
     else
         list->tail = node->prev;
+    // 释放 value
     if (list->free) list->free(node->value);
+    // 释放节点
     zfree(node);
     list->len--;
 }
@@ -222,10 +227,12 @@ list *listDup(list *orig)
     copy->free = orig->free;
     copy->match = orig->match;
     iter = listGetIterator(orig, AL_START_HEAD);
+    // 不断调用 listNext() 
     while((node = listNext(iter)) != NULL) {
         void *value;
 
         if (copy->dup) {
+            // 如果有定义的 dup 函数
             value = copy->dup(node->value);
             if (value == NULL) {
                 listRelease(copy);
@@ -240,6 +247,7 @@ list *listDup(list *orig)
             return NULL;
         }
     }
+    // 释放迭代器
     listReleaseIterator(iter);
     return copy;
 }
@@ -261,6 +269,7 @@ listNode *listSearchKey(list *list, void *key)
     iter = listGetIterator(list, AL_START_HEAD);
     while((node = listNext(iter)) != NULL) {
         if (list->match) {
+            // 如果有 match 函数
             if (list->match(node->value, key)) {
                 listReleaseIterator(iter);
                 return node;
@@ -285,10 +294,12 @@ listNode *listIndex(list *list, int index) {
     listNode *n;
 
     if (index < 0) {
+        // 从后往前
         index = (-index)-1;
         n = list->tail;
         while(index-- && n) n = n->prev;
     } else {
+        // 从前往后
         n = list->head;
         while(index-- && n) n = n->next;
     }
