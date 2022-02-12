@@ -107,14 +107,15 @@ unsigned char *zipmapNew(void) {
     unsigned char *zm = zmalloc(2);
 
     zm[0] = 0; /* Status */
-    zm[1] = ZIPMAP_END;
+    zm[1] = ZIPMAP_END; /* 结束标记 */
     return zm;
 }
 
 /* Decode the encoded length pointed by 'p' */
 static unsigned int zipmapDecodeLength(unsigned char *p) {
+    
     unsigned int len = *p;
-
+    // 
     if (len < ZIPMAP_BIGLEN) return len;
     memcpy(&len,p+1,sizeof(unsigned int));
     return len;

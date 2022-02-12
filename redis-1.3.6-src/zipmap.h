@@ -36,13 +36,21 @@
 #define _ZIPMAP_H
 
 unsigned char *zipmapNew(void);
+// 设置 key-value
 unsigned char *zipmapSet(unsigned char *zm, unsigned char *key, unsigned int klen, unsigned char *val, unsigned int vlen, int *update);
+// 删除
 unsigned char *zipmapDel(unsigned char *zm, unsigned char *key, unsigned int klen, int *deleted);
+// 指针向后移一位
 unsigned char *zipmapRewind(unsigned char *zm);
+// 得到下一个 key-value
 unsigned char *zipmapNext(unsigned char *zm, unsigned char **key, unsigned int *klen, unsigned char **value, unsigned int *vlen);
+// 取 key 对应的 value
 int zipmapGet(unsigned char *zm, unsigned char *key, unsigned int klen, unsigned char **value, unsigned int *vlen);
+// 判断 key 是否存在
 int zipmapExists(unsigned char *zm, unsigned char *key, unsigned int klen);
+// 返回 key-value 有多少对
 unsigned int zipmapLen(unsigned char *zm);
+// 遍历 print
 void zipmapRepr(unsigned char *p);
 
 #endif
